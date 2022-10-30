@@ -208,6 +208,13 @@ interface IManagedVault {
 
     /* ============ External View Functions ============ */
 
+    function setPriceBlockNumber()
+        external
+        view
+        returns (uint256 setPriceBlockNumber);
+
+    function vaultPrice() external view returns (uint256 vaultPrice);
+
     /**
      * @notice Returns the token addresses available for deposits.
      *

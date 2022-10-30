@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 /**
  * @title ManagedVault
- * @author Teragon
+ * @author Teragon, pbnather
  *
  * @notice A flexible vault for tracking deposits and minting corresponding vault tokens to the depositors.
  *         The deposits are transferred to the owner and the owner is able to manage the funds without any restrictions.
@@ -79,6 +79,7 @@ error TransferFailed();
 
 /* ============ Contract ============ */
 
+// TODO: Remove upgradeability
 contract ManagedVault is
     Initializable,
     OwnableUpgradeable,
@@ -227,7 +228,7 @@ contract ManagedVault is
                     tokenPrices[depositTokenAddress]
                 );
             }
-
+            // TODO: check unchecked
             unchecked {
                 tokenIndex++;
             }
