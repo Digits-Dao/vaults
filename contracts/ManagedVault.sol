@@ -7,49 +7,19 @@ pragma solidity 0.8.17;
  *
  * @notice A flexible vault for tracking deposits and minting corresponding vault tokens to the depositors.
  *         The deposits are transferred to the owner and the owner is able to manage the funds without any restrictions.
- *
- *                                                =
- *                                             ==== ===
- *                                           ======= =======
- *                       == ==           =========== =======
- *                    ===== ======    ============== =======
- *                 ======== =========   ============ =======
- *             ============ ============   ========= =======
- *          ===============   =============  ======= =======
- *       =============== ======= ==========  ======= =======
- *   =============== ============== =======  ======= =======
- *  ============= ====================  ===  ======= =======
- *  ========= ============================   ======= =======
- *  ====== ==============     ============  ======== =======
- *  == ==============   ===  ===  ====  ============ =======
- *   ============== =======  ======  ==============   ======
- *      =========== =======  ======= ===========  ====== ===
- *          ======= =======  ======= =======  =============
- *             ==== =======  ======= ====  ==============
- *                  =======  =======    ==============
- *                  =======  =======  ==============
- *                  =======  ===========  =====  ===
- *                  =======  ==============  =======
- *                  ===  =====  ====================
- *                    ============ =================
- *                    ===============  =============
- *                        =============== ==========
- *                           ===============  ======
- *                               ==============  ===
- *                                  ==============
- *                                      ========
- *                                         ==
  */
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import "./interfaces/IManagedVault.sol";
+import "./interfaces/IRedemptionHelper.sol";
 import "./libraries/PendingDeposit.sol";
+import "./utilities/ERC20Initializable.sol";
+import "./RedemptionHelper.sol";
 
 /* ============ Errors ============ */
 
@@ -79,20 +49,25 @@ error TransferFailed();
 
 /* ============ Contract ============ */
 
-// TODO: Remove upgradeability
 contract ManagedVault is
     Initializable,
-    OwnableUpgradeable,
-    ERC20Upgradeable,
+    Ownable,
+    ERC20Initializable,
     IManagedVault
 {
     /* ============ Libraries ============ */
 
-    using AddressUpgradeable for address;
     using EnumerableSet for EnumerableSet.AddressSet;
     using PendingDeposit for PendingDeposit.Queue;
 
     /* ============ State Variables ============ */
+
+    // List of addresses that can transfer the vault token
+    mapping(address => bool) public allowlist;
+    IRedemptionHelper public redemptionHelper;
+
+    // address of admin which can change contract owner
+    address public admin;
 
     // Pending deposits for the native cryptocurrency (Ether for the Ethereum network)
     PendingDeposit.Queue pendingNativeDeposits;
@@ -118,12 +93,76 @@ contract ManagedVault is
     /* ============ Initializer ============ */
     function initialize(
         address owner_,
+        address admin_,
         string memory name_,
         string memory symbol_
     ) external initializer {
         __ERC20_init(name_, symbol_);
-        __Ownable_init();
         _transferOwnership(owner_);
+        admin = admin_;
+        redemptionHelper = new RedemptionHelper();
+        allowlist[address(redemptionHelper)] = true;
+    }
+
+    /* ============ ERC20 external functions ============ */
+
+    /**
+     * @dev See {IERC20-transfer}.
+     *
+     * @notice Only adds simple address check to OpenZeppelin ERC20 implementation.
+     */
+    function transfer(address to, uint256 amount)
+        public
+        virtual
+        override
+        returns (bool)
+    {
+        address owner = _msgSender();
+        require(allowlist[owner], "Transfer not allowed"); // single added line
+        _transfer(owner, to, amount);
+        return true;
+    }
+
+    /**
+     * @dev See {IERC20-transferFrom}.
+     *
+     * @notice Only adds simple address check to OpenZeppelin ERC20 implementation.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        address spender = _msgSender();
+        require(allowlist[spender], "Transfer not allowed"); // single added line
+        _spendAllowance(from, spender, amount);
+        _transfer(from, to, amount);
+        return true;
+    }
+
+    /* ============ External Admin Functions ============ */
+
+    /**
+     * @dev Allows admin to change owner of the vault contract.
+     *
+     * @param owner_ The new owner.
+     */
+    function changeOwner(address owner_) external {
+        require(msg.sender == admin);
+        require(owner_ != owner());
+        _transferOwnership(owner_);
+    }
+
+    /* ============ External RedemptionHelper Functions ============ */
+
+    /**
+     * @dev Allows RedemptionHelper to bun tokens.
+     *
+     * @param amount Amount of vault tokens to burn.
+     */
+    function burn(uint256 amount) external {
+        require(msg.sender == address(redemptionHelper));
+        _burn(address(redemptionHelper), amount);
     }
 
     /* ============ External Owner Functions ============ */
@@ -228,7 +267,6 @@ contract ManagedVault is
                     tokenPrices[depositTokenAddress]
                 );
             }
-            // TODO: check unchecked
             unchecked {
                 tokenIndex++;
             }
@@ -355,26 +393,6 @@ contract ManagedVault is
                 tokenIndex++;
             }
         }
-    }
-
-    /**
-     * @notice Low level function that allows a module to make an arbitrary function call to any contract.
-     *
-     * @dev Emits an {Invoked} event.
-     *
-     * @param target                 Address of the smart contract to call
-     * @param value                  Quantity of Ether to provide the call (typically 0)
-     * @param data                   Encoded function selector and arguments
-     *
-     * @return returnValue           Bytes encoded return value
-     */
-    function invoke(
-        address target,
-        bytes calldata data,
-        uint256 value
-    ) external onlyOwner returns (bytes memory returnValue) {
-        returnValue = target.functionCallWithValue(data, value);
-        emit Invoked(target, value, data, returnValue);
     }
 
     /* ============ External Functions ============ */
