@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 /**
- * @title Redemption
+ * @title RedemptionHelper
  * @author pbnather
  */
 
@@ -19,25 +19,41 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
         uint256 registrationEndTime;
         uint256 pending;
         uint256 price;
+        uint256 fee;
         IERC20 token;
         bool active;
     }
 
     /* ============ State Variables ============ */
 
-    address public vault;
     Redemption[] public redemptions;
     mapping(address => mapping(uint256 => uint256)) public userClaims;
 
+    address public admin;
     uint256 private _preparationTime;
     uint256 private _redemptionInterval;
     IERC20 private _redemptionToken;
 
     /* ============ Initializer ============ */
 
-    constructor() {
-        vault = owner();
-        redemptions.push(Redemption(0, 0, 0, 0, IERC20(address(0)), false));
+    constructor(address owner_, address admin_) {
+        require(owner_ != address(0));
+        require(admin_ != address(0));
+        _transferOwnership(owner_);
+        admin = admin_;
+    }
+
+    /* ============ External Admin Functions ============ */
+
+    /**
+     * @dev Allows admin to change owner of the vault contract.
+     *
+     * @param owner_ The new owner.
+     */
+    function changeOwner(address owner_) external {
+        require(msg.sender == admin);
+        require(owner_ != owner());
+        _transferOwnership(owner_);
     }
 
     /* ============ External Owner Functions ============ */
@@ -45,138 +61,160 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
     function SetRedemptionInterval(uint256 interval) external onlyOwner {
         require(interval > _preparationTime);
         _redemptionInterval = interval;
+        emit RedemptionIntervalSet(interval);
     }
 
     function SetPreparationTime(uint256 preparationTime) external onlyOwner {
         require(preparationTime < _redemptionInterval);
         _preparationTime = preparationTime;
+        emit PreparationTimeSet(preparationTime);
     }
 
     function SetRedemptionToken(IERC20 token) external onlyOwner {
-        require(_redemptionToken != token);
+        require(token != IERC20(address(0)));
         _redemptionToken = token;
+        emit RedemptionTokenSet(token);
     }
 
-    function Initialize(uint256 nextRedemptionExactTime) external onlyOwner {
-        require(
-            redemptions[0].redemptionTime == 0,
-            "Redemptions are already active"
-        );
+    function Initialize(uint256 nextRedemptionExactTime, uint256 fee)
+        external
+        onlyOwner
+    {
+        require(redemptions.length == 0, "Redemptions are already active");
         require(
             _redemptionInterval > 0 &&
                 _preparationTime > 0 &&
                 _redemptionToken != IERC20(address(0))
         );
-        redemptions[0].token = _redemptionToken;
-        _initilaizeRedemptionTime(0, nextRedemptionExactTime);
+        _addNewRedemption(nextRedemptionExactTime, fee);
     }
 
     function ActivateRedemption(uint256 nextRedemptionExactTime, uint256 fee)
         external
         onlyOwner
     {
-        uint256 ridx = redemptions.length - 1;
+        require(fee < 1001);
+        uint256 redemptionsLength = redemptions.length;
+        require(redemptionsLength > 0);
+        uint256 index = redemptionsLength - 1;
+        Redemption storage redemption = redemptions[index];
         require(
-            block.timestamp >= redemptions[ridx].redemptionTime &&
-                redemptions[ridx].active == false,
+            block.timestamp > redemption.redemptionTime &&
+                redemption.active == false,
             "Redemption already activated"
         );
         // get price + setprice time
         require(
-            IManagedVault(vault).setPriceBlockNumber() + 5000 >= block.number,
+            IManagedVault(owner()).setPriceBlockNumber() + 5001 > block.number,
             "Price not set within 5000 blocks"
         );
-        uint256 price = IManagedVault(vault).vaultPrice();
+        uint256 price = IManagedVault(owner()).vaultPrice();
         // calculate fee
-        uint256 feeAmount = (fee * price) / 10000;
+        uint256 feeAmount = (redemption.fee * price) / 10000;
         price -= feeAmount;
-        uint256 amount = price * redemptions[ridx].pending;
+        uint256 amount = price * redemption.pending;
         // get amount
-        (redemptions[ridx].token).transferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
-        redemptions[ridx].price = price;
-        redemptions[ridx].active = true;
-        // create new redemption
-        redemptions.push(Redemption(0, 0, 0, 0, _redemptionToken, false));
-        _initilaizeRedemptionTime(ridx + 1, nextRedemptionExactTime);
+        (redemption.token).transferFrom(msg.sender, address(this), amount);
+        redemption.price = price;
+        redemption.active = true;
+        emit RedemptionActivated(index, price, redemption.token);
+        _addNewRedemption(nextRedemptionExactTime, fee);
     }
 
-    function _initilaizeRedemptionTime(
-        uint256 index,
-        uint256 nextRedemptionExactTime
-    ) internal {
-        if (nextRedemptionExactTime != 0) {
+    /* ============ Internal Functions ============ */
+
+    function _addNewRedemption(uint256 nextRedemptionExactTime, uint256 fee)
+        internal
+    {
+        require(fee < 1001);
+        uint256 redemptionTime;
+        uint256 registrationEndTime;
+
+        if (nextRedemptionExactTime > 0) {
             require(
                 nextRedemptionExactTime - _preparationTime > block.timestamp,
                 "Redemption time too close"
             );
-            redemptions[index].redemptionTime = nextRedemptionExactTime;
-            redemptions[index].registrationEndTime =
-                nextRedemptionExactTime -
-                _preparationTime;
+            redemptionTime = nextRedemptionExactTime;
         } else {
-            redemptions[index].redemptionTime =
-                block.timestamp +
-                _redemptionInterval;
-            redemptions[index].registrationEndTime =
-                redemptions[index].redemptionTime -
-                _preparationTime;
+            redemptionTime = block.timestamp + _redemptionInterval;
         }
+        registrationEndTime = redemptionTime - _preparationTime;
+
+        redemptions.push(
+            Redemption(
+                redemptionTime,
+                registrationEndTime,
+                0,
+                0,
+                fee,
+                _redemptionToken,
+                false
+            )
+        );
+        emit NewRedemption(
+            redemptions.length - 1,
+            redemptionTime,
+            registrationEndTime,
+            fee,
+            _redemptionToken
+        );
     }
 
     /* ============ External Functions ============ */
 
     function Redeem(uint256[] memory claims) external {
         for (uint256 i = 0; i < claims.length; i++) {
-            uint256 ridx = claims[i];
+            uint256 index = claims[i];
+            Redemption storage redemption = redemptions[index];
             require(
-                redemptions[ridx].active == true &&
-                    block.timestamp >= redemptions[ridx].redemptionTime,
+                redemption.active == true &&
+                    block.timestamp >= redemption.redemptionTime,
                 "Redemption is not active yet"
             );
-            require(userClaims[msg.sender][ridx] > 0, "No tokens registered");
-            uint256 amount = userClaims[msg.sender][ridx];
-            userClaims[msg.sender][ridx] = 0;
-            redemptions[ridx].pending -= amount;
-            amount *= redemptions[ridx].price;
-            (redemptions[ridx].token).transferFrom(
-                address(this),
-                msg.sender,
-                amount
-            );
+            uint256 amount = userClaims[msg.sender][index];
+            require(amount > 0, "No tokens registered");
+            userClaims[msg.sender][index] = 0;
+            redemption.pending -= amount;
+            amount *= redemption.price;
+            (redemption.token).transfer(msg.sender, amount);
+            emit Reedemed(index, msg.sender, amount, redemption.token);
         }
     }
 
     function Register(uint256 amount) external {
-        uint256 ridx = redemptions.length - 1;
+        uint256 index = redemptions.length - 1;
+        Redemption storage redemption = redemptions[index];
         require(
-            block.timestamp <= redemptions[ridx].registrationEndTime,
+            block.timestamp <= redemption.registrationEndTime,
             "Registration time ended"
         );
         require(
-            IERC20(vault).balanceOf(msg.sender) >= amount,
+            IERC20(owner()).balanceOf(msg.sender) >= amount,
             "Too few vault tokens"
         );
-        userClaims[msg.sender][ridx] += amount;
-        redemptions[ridx].pending += amount;
-        IERC20(vault).transferFrom(msg.sender, address(this), amount);
+        userClaims[msg.sender][index] += amount;
+        redemption.pending += amount;
+        IERC20(owner()).transferFrom(msg.sender, address(this), amount);
+        emit Registered(index, msg.sender, amount, redemption.token);
     }
 
     function Unregister(uint256 amount) external {
-        uint256 ridx = redemptions.length - 1;
+        uint256 index = redemptions.length - 1;
+        Redemption storage redemption = redemptions[index];
         require(
-            block.timestamp <= redemptions[ridx].registrationEndTime,
+            block.timestamp <= redemption.registrationEndTime,
             "Registration time ended"
         );
         require(
-            userClaims[msg.sender][ridx] >= amount,
+            userClaims[msg.sender][index] >= amount,
             "Too few registered tokens"
         );
-        userClaims[msg.sender][ridx] -= amount;
-        redemptions[ridx].pending -= amount;
-        IERC20(vault).transferFrom(address(this), msg.sender, amount);
+        userClaims[msg.sender][index] -= amount;
+        redemption.pending -= amount;
+        IERC20(owner()).transfer(msg.sender, amount);
+        emit Unregistered(index, msg.sender, amount, redemption.token);
     }
+
+    /* ============ External View Functions ============ */
 }

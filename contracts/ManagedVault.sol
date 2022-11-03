@@ -97,10 +97,12 @@ contract ManagedVault is
         string memory name_,
         string memory symbol_
     ) external initializer {
+        require(owner_ != address(0));
+        require(admin_ != address(0));
         __ERC20_init(name_, symbol_);
         _transferOwnership(owner_);
         admin = admin_;
-        redemptionHelper = new RedemptionHelper();
+        redemptionHelper = new RedemptionHelper(owner_, admin_);
         allowlist[address(redemptionHelper)] = true;
     }
 
