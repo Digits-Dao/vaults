@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 /**
  * @title IManagedVault
- * @author Teragon
+ * @author Teragon, pbnather
  */
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -77,16 +77,6 @@ interface IManagedVault {
      */
     event Minted(address indexed depositor, uint256 indexed amount);
 
-    // /**
-    //  * @notice Emitted when the owner invokes an arbitrary function of any contract.
-    //  */
-    // event Invoked(
-    //     address indexed target,
-    //     uint256 indexed value,
-    //     bytes data,
-    //     bytes returnValue
-    // );
-
     /* ============ External Functions ============ */
 
     /**
@@ -110,6 +100,24 @@ interface IManagedVault {
      * @param amount The amount of the token to deposit.
      */
     function depositToken(IERC20 tokenAddress, uint256 amount) external;
+
+    /* ============ External Admin Functions ============ */
+
+    /**
+     * @dev Allows admin to change owner of the vault contract.
+     *
+     * @param owner_ The new owner.
+     */
+    function changeOwner(address owner_) external;
+
+    /* ============ External RedemptionHelper Functions ============ */
+
+    /**
+     * @dev Allows RedemptionHelper to bun tokens.
+     *
+     * @param amount Amount of vault tokens to burn.
+     */
+    function burn(uint256 amount) external;
 
     /* ============ External Owner Functions ============ */
 
