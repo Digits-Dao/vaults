@@ -16,10 +16,8 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import "./interfaces/IManagedVault.sol";
-import "./interfaces/IRedemptionHelper.sol";
 import "./libraries/PendingDeposit.sol";
 import "./utilities/ERC20Initializable.sol";
-import "./RedemptionHelper.sol";
 
 /* ============ Errors ============ */
 
@@ -64,10 +62,11 @@ contract ManagedVault is
 
     // List of addresses that can transfer the vault token
     mapping(address => bool) public allowlist;
-    IRedemptionHelper public redemptionHelper;
 
     // address of admin which can change contract owner
     address public admin;
+    // address of RedemptionHelper for given contract
+    address public redemptionHelper;
 
     // Pending deposits for the native cryptocurrency (Ether for the Ethereum network)
     PendingDeposit.Queue pendingNativeDeposits;
@@ -94,16 +93,18 @@ contract ManagedVault is
     function initialize(
         address owner_,
         address admin_,
+        address redemptionHelper_,
         string memory name_,
         string memory symbol_
     ) external initializer {
         require(owner_ != address(0));
         require(admin_ != address(0));
+        require(redemptionHelper_ != address(0));
         __ERC20_init(name_, symbol_);
         _transferOwnership(owner_);
         admin = admin_;
-        redemptionHelper = new RedemptionHelper(owner_, admin_);
-        allowlist[address(redemptionHelper)] = true;
+        redemptionHelper = redemptionHelper_;
+        allowlist[redemptionHelper] = true;
     }
 
     /* ============ ERC20 external functions ============ */
@@ -153,6 +154,18 @@ contract ManagedVault is
         require(msg.sender == admin);
         require(owner_ != owner());
         _transferOwnership(owner_);
+    }
+
+    /**
+     * @dev Allows admin to change allowlist.
+     *
+     * @param address_ The address to change.
+     * @param allowed_ The new allowlist state.
+     */
+    function changeAllowlist(address address_, bool allowed_) external {
+        require(msg.sender == admin);
+        allowlist[address_] = allowed_;
+        emit AllowlistChanged(address_, allowed_);
     }
 
     /* ============ External RedemptionHelper Functions ============ */

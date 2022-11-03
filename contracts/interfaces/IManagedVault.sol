@@ -12,6 +12,11 @@ interface IManagedVault {
     /* ============ Events ============ */
 
     /**
+     * @notice Emitted when admin changes allowlist.
+     */
+    event AllowlistChanged(address indexed address_, bool indexed state);
+
+    /**
      * @notice Emitted when a user deposits the native cryptocurrency (Ether for the Ethereum network)
      *         into the contract.
      *
@@ -80,6 +85,17 @@ interface IManagedVault {
     /* ============ External Functions ============ */
 
     /**
+     * @notice Initializer function called by factory.
+     */
+    function initialize(
+        address owner_,
+        address admin_,
+        address redemptionHelper_,
+        string memory name_,
+        string memory symbol_
+    ) external;
+
+    /**
      * @notice Deposits an amount of the native cryptocurrency (Ether for the Ethereum network) into the managed vault.
      *
      * @dev msg.value must be equal to or greater than minimumDepositAmount.
@@ -109,6 +125,14 @@ interface IManagedVault {
      * @param owner_ The new owner.
      */
     function changeOwner(address owner_) external;
+
+    /**
+     * @dev Allows admin to change allowlist.
+     *
+     * @param address_ The address to change.
+     * @param allowed_ The new allowlist state.
+     */
+    function changeAllowlist(address address_, bool allowed_) external;
 
     /* ============ External RedemptionHelper Functions ============ */
 

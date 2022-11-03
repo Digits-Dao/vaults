@@ -54,11 +54,13 @@ interface IRedemptionHelper {
 
     /* ============ External Functions ============ */
 
-    function Redeem(uint256[] memory claims) external;
+    function initialize(address owner_, address admin_) external;
 
-    function Register(uint256 amount) external;
+    function redeem(uint256[] memory claims) external;
 
-    function Unregister(uint256 amount) external;
+    function register(uint256 amount) external;
+
+    function unregister(uint256 amount) external;
 
     /* ============ External Admin Functions ============ */
 
@@ -71,13 +73,14 @@ interface IRedemptionHelper {
 
     /* ============ External Owner Functions ============ */
 
-    function SetRedemptionInterval(uint256 interval) external;
+    function setRedemptionInterval(uint256 interval) external;
 
-    function SetPreparationTime(uint256 preparationTime) external;
+    function setPreparationTime(uint256 preparationTime) external;
 
-    function Initialize(uint256 nextRedemptionExactTime, uint256 fee) external;
+    function initializeRedemptions(uint256 nextRedemptionExactTime, uint256 fee)
+        external;
 
-    function ActivateRedemption(uint256 nextRedemptionExactTime, uint256 fee)
+    function activateRedemption(uint256 nextRedemptionExactTime, uint256 fee)
         external;
 
     /* ============ External View Functions ============ */

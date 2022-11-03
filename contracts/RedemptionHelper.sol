@@ -8,10 +8,12 @@ pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
 import "./interfaces/IRedemptionHelper.sol";
 import "./interfaces/IManagedVault.sol";
 
-contract RedemptionHelper is IRedemptionHelper, Ownable {
+contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
     /* ============ Structures ============ */
 
     struct Redemption {
@@ -36,7 +38,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
 
     /* ============ Initializer ============ */
 
-    constructor(address owner_, address admin_) {
+    function initialize(address owner_, address admin_) external initializer {
         require(owner_ != address(0));
         require(admin_ != address(0));
         _transferOwnership(owner_);
@@ -58,25 +60,25 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
 
     /* ============ External Owner Functions ============ */
 
-    function SetRedemptionInterval(uint256 interval) external onlyOwner {
+    function setRedemptionInterval(uint256 interval) external onlyOwner {
         require(interval > _preparationTime);
         _redemptionInterval = interval;
         emit RedemptionIntervalSet(interval);
     }
 
-    function SetPreparationTime(uint256 preparationTime) external onlyOwner {
+    function setPreparationTime(uint256 preparationTime) external onlyOwner {
         require(preparationTime < _redemptionInterval);
         _preparationTime = preparationTime;
         emit PreparationTimeSet(preparationTime);
     }
 
-    function SetRedemptionToken(IERC20 token) external onlyOwner {
+    function setRedemptionToken(IERC20 token) external onlyOwner {
         require(token != IERC20(address(0)));
         _redemptionToken = token;
         emit RedemptionTokenSet(token);
     }
 
-    function Initialize(uint256 nextRedemptionExactTime, uint256 fee)
+    function initializeRedemptions(uint256 nextRedemptionExactTime, uint256 fee)
         external
         onlyOwner
     {
@@ -89,7 +91,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
         _addNewRedemption(nextRedemptionExactTime, fee);
     }
 
-    function ActivateRedemption(uint256 nextRedemptionExactTime, uint256 fee)
+    function activateRedemption(uint256 nextRedemptionExactTime, uint256 fee)
         external
         onlyOwner
     {
@@ -117,6 +119,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
         (redemption.token).transferFrom(msg.sender, address(this), amount);
         redemption.price = price;
         redemption.active = true;
+        IManagedVault(owner()).burn(redemption.pending);
         emit RedemptionActivated(index, price, redemption.token);
         _addNewRedemption(nextRedemptionExactTime, fee);
     }
@@ -163,7 +166,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
 
     /* ============ External Functions ============ */
 
-    function Redeem(uint256[] memory claims) external {
+    function redeem(uint256[] memory claims) external {
         for (uint256 i = 0; i < claims.length; i++) {
             uint256 index = claims[i];
             Redemption storage redemption = redemptions[index];
@@ -182,7 +185,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
         }
     }
 
-    function Register(uint256 amount) external {
+    function register(uint256 amount) external {
         uint256 index = redemptions.length - 1;
         Redemption storage redemption = redemptions[index];
         require(
@@ -199,7 +202,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable {
         emit Registered(index, msg.sender, amount, redemption.token);
     }
 
-    function Unregister(uint256 amount) external {
+    function unregister(uint256 amount) external {
         uint256 index = redemptions.length - 1;
         Redemption storage redemption = redemptions[index];
         require(
