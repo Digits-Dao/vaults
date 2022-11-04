@@ -221,23 +221,6 @@ interface IManagedVault {
      */
     function mint(uint256 maxMints) external returns (uint256 mintCount); //onlyOwner
 
-    // /**
-    //  * @notice Low level function that allows a module to make an arbitrary function call to any contract.
-    //  *
-    //  * @dev Emits an {Invoked} event.
-    //  *
-    //  * @param target                 Address of the smart contract to call
-    //  * @param value                  Quantity of Ether to provide the call (typically 0)
-    //  * @param data                   Encoded function selector and arguments
-    //  *
-    //  * @return returnValue           Bytes encoded return value
-    //  */
-    // function invoke(
-    //     address target,
-    //     bytes calldata data,
-    //     uint256 value
-    // ) external returns (bytes memory returnValue); //onlyOwner
-
     /* ============ External View Functions ============ */
 
     function setPriceBlockNumber()

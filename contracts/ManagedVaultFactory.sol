@@ -42,6 +42,13 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
 
     /* ============ External Owner Functions ============ */
 
+    /**
+     * @notice Creates new ManagedVault Clone, and RedemptionHelper Clone.
+     *
+     * @param _manager Vault manager.
+     * @param _tokenName Name of the vault token.
+     * @param _tokenSymbol Sumbol of the vault token.
+     */
     function createVault(
         address _manager,
         string memory _tokenName,
@@ -64,6 +71,11 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
         return vault;
     }
 
+    /**
+     * @notice Change ManagedVault implementation address.
+     *
+     * @param _impl New implementation address.
+     */
     function changeManagedVaultImpl(address _impl) external onlyOwner {
         require(_impl != address(0));
         address oldImpl = managedVaultImpl;
@@ -71,6 +83,11 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
         emit ManagedVaultImplChanged(oldImpl, _impl);
     }
 
+    /**
+     * @dev Change RedemptionHelper implementation address.
+     *
+     * @param _impl New implementation address.
+     */
     function changeRedemptionHelperImpl(address _impl) external onlyOwner {
         require(_impl != address(0));
         address oldImpl = redemptionHelperImpl;
@@ -78,6 +95,14 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
         emit RedemptionHelperImplChanged(oldImpl, _impl);
     }
 
+    /**
+     * @notice Change vault's state (active or inactive).
+     *
+     * @dev This state is usefull only for frontend filtering.
+     *
+     * @param _vault Vault address.
+     * @param _active New vault state.
+     */
     function changeState(address _vault, bool _active) external {
         Info storage vaultInfo = info[_vault];
         require(vaultInfo.exists);
@@ -88,11 +113,25 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
 
     /* ============ External View Functions ============ */
 
-    function getVaults() external view returns (address[] memory) {
+    /**
+     * @notice Returns all vault addresses.
+     *
+     * @return allVaults Array of all vault addresses.
+     */
+    function getVaults() external view returns (address[] memory allVaults) {
         return vaults;
     }
 
-    function getActiveVaults() external view returns (address[] memory) {
+    /**
+     * @notice Returns all active vault addresses.
+     *
+     * @return allActiveVaults Array of all active vault addresses.
+     */
+    function getActiveVaults()
+        external
+        view
+        returns (address[] memory allActiveVaults)
+    {
         uint256 length = vaults.length;
         address[] memory tmpVaults = new address[](length);
         uint256 j = 0;
@@ -110,11 +149,25 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
         return activeVaults;
     }
 
-    function vaultExists(address _vault) external view returns (bool) {
+    /**
+     * @notice Returns if vault exists.
+     *
+     * @param _vault Address of the vault.
+     *
+     * @return exists Boolean of the vault existance.
+     */
+    function vaultExists(address _vault) external view returns (bool exists) {
         return info[_vault].exists;
     }
 
-    function vaultActive(address _vault) external view returns (bool) {
-        return info[_vault].exists;
+    /**
+     * @notice Returns if vault is active.
+     *
+     * @param _vault Address of the vault.
+     *
+     * @return isActive Boolean of the vault active status.
+     */
+    function vaultActive(address _vault) external view returns (bool isActive) {
+        return info[_vault].active;
     }
 }
