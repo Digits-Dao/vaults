@@ -29,8 +29,8 @@ describe("ManagedVault", function () {
         const daiWhale = await ethers.getImpersonatedSigner(DAI_WHALE);
         await Dai.connect(daiWhale).transfer(alice.address, TOKEN_AMOUNT)
 
-        const maangedVaultFactory = await ethers.getContractFactory("ManagedVault");
-        ManagedVault = (await maangedVaultFactory.deploy()) as ManagedVault;
+        const managedVaultFactory = await ethers.getContractFactory("ManagedVault");
+        ManagedVault = (await managedVaultFactory.deploy()) as ManagedVault;
         await Dai.connect(alice).approve(ManagedVault.address, constants.MaxUint256);
         await ManagedVault.connect(alice).approve(redemptionHelper.address, constants.MaxUint256);
         await ManagedVault.connect(alice).approve(deployer.address, constants.MaxUint256);

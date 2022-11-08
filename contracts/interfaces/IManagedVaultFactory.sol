@@ -11,6 +11,7 @@ interface IManagedVaultFactory {
 
     event VaultCreated(
         address indexed vault,
+        address indexed helper,
         address indexed manager,
         string tokenName,
         string tokenSymbol
@@ -36,12 +37,15 @@ interface IManagedVaultFactory {
      * @param _manager Vault manager.
      * @param _tokenName Name of the vault token.
      * @param _tokenSymbol Sumbol of the vault token.
+     *
+     * @return vault Address of the new ManagedVault.
+     * @return helper Address of the new RedemptionHelper.
      */
     function createVault(
         address _manager,
         string memory _tokenName,
         string memory _tokenSymbol
-    ) external returns (address); // onlyOwner
+    ) external returns (address vault, address helper); // onlyOwner
 
     /**
      * @notice Change ManagedVault implementation address.

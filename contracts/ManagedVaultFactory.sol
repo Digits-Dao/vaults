@@ -48,15 +48,18 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
      * @param _manager Vault manager.
      * @param _tokenName Name of the vault token.
      * @param _tokenSymbol Sumbol of the vault token.
+     *
+     * @return vault Address of the new ManagedVault.
+     * @return helper Address of the new RedemptionHelper.
      */
     function createVault(
         address _manager,
         string memory _tokenName,
         string memory _tokenSymbol
-    ) external onlyOwner returns (address) {
+    ) external onlyOwner returns (address vault, address helper) {
         address owner = owner();
-        address helper = Clones.clone(redemptionHelperImpl);
-        address vault = Clones.clone(managedVaultImpl);
+        helper = Clones.clone(redemptionHelperImpl);
+        vault = Clones.clone(managedVaultImpl);
         IRedemptionHelper(helper).initialize(_manager, owner);
         IManagedVault(vault).initialize(
             _manager,
@@ -67,8 +70,7 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
         );
         vaults.push(vault);
         info[vault] = Info(true, false);
-        emit VaultCreated(vault, _manager, _tokenName, _tokenSymbol);
-        return vault;
+        emit VaultCreated(vault, helper, _manager, _tokenName, _tokenSymbol);
     }
 
     /**
@@ -103,7 +105,7 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
      * @param _vault Vault address.
      * @param _active New vault state.
      */
-    function changeState(address _vault, bool _active) external {
+    function changeState(address _vault, bool _active) external onlyOwner {
         Info storage vaultInfo = info[_vault];
         require(vaultInfo.exists);
         require(vaultInfo.active != _active);
