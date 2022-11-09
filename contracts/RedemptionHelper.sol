@@ -237,11 +237,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
         for (uint256 i = 0; i < claims.length; i++) {
             uint256 index = claims[i];
             Redemption storage redemption = redemptions[index];
-            require(
-                redemption.active == true &&
-                    block.timestamp >= redemption.redemptionTime,
-                "Redemption is not active yet"
-            );
+            require(redemption.active == true, "Redemption is not active yet");
             uint256 amount = userClaims[msg.sender][index];
             require(amount > 0, "No tokens registered");
             userClaims[msg.sender][index] = 0;

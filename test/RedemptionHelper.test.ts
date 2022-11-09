@@ -462,10 +462,90 @@ describe("RedemptionHelper", function () {
     });
 
     describe("register", () => {
-        it("should not be initialized before calling", async function () {
-            expect(await HelperImpl.owner()).to.be.equal(deployer.address);
-            expect(await HelperImpl.vault()).to.be.equal(constants.AddressZero);
-            expect(await HelperImpl.admin()).to.be.equal(constants.AddressZero);
+        beforeEach("initialize", _initilaize);
+
+        it("should not register after registration time", async function () {
+            let registrationTime = (await RedemptionHelper.redemptions(0)).registrationEndTime;
+            await helpers.time.setNextBlockTimestamp(registrationTime.add(100));
+            await ManagedVault.connect(manager).setPrices(await helpers.time.latestBlock(), 200, 1500, [DAI], [1]);
+
+            let action = RedemptionHelper.connect(bob).register(5);
+            await expect(action).to.be.revertedWith("Registration time ended");
+        });
+
+        it("should not register with too few vault tokens", async function () {
+            let action = RedemptionHelper.connect(bob).register(getBigNumber(TOKEN_AMOUNT));
+            await expect(action).to.be.revertedWith("Too few vault tokens");
+        });
+
+        it("should register properly", async function () {
+            await ManagedVault.connect(bob).depositToken(DAI, TOKEN_AMOUNT.sub(500));
+            let currentBlock = await ethers.provider.getBlockNumber();
+            await ManagedVault.connect(manager).setPrices(currentBlock, 100, 1500, [DAI], [1]);
+            await ManagedVault.connect(manager).mint(10);
+            await RedemptionHelper.connect(bob).register(95);
+
+            expect(await RedemptionHelper.userClaims(bob.address, 0)).to.be.equal(100);
+            expect((await RedemptionHelper.redemptions(0)).pending).to.be.equal(110);
+        });
+    });
+
+    describe("unregister", () => {
+        beforeEach("initialize", _initilaize);
+
+        it("should not unregister after registration time", async function () {
+            let registrationTime = (await RedemptionHelper.redemptions(0)).registrationEndTime;
+            await helpers.time.setNextBlockTimestamp(registrationTime.add(100));
+            await ManagedVault.connect(manager).setPrices(await helpers.time.latestBlock(), 200, 1500, [DAI], [1]);
+
+            let action = RedemptionHelper.connect(bob).unregister(5);
+            await expect(action).to.be.revertedWith("Registration time ended");
+        });
+
+        it("should not unregister with too few registered vault tokens", async function () {
+            let action = RedemptionHelper.connect(bob).unregister(10);
+            await expect(action).to.be.revertedWith("Too few registered tokens");
+        });
+
+        it("should unregister properly", async function () {
+            await RedemptionHelper.connect(bob).unregister(5);
+
+            expect(await RedemptionHelper.userClaims(bob.address, 0)).to.be.equal(0);
+            expect((await RedemptionHelper.redemptions(0)).pending).to.be.equal(10);
+        });
+    });
+
+    describe("redeem", () => {
+        beforeEach("initialize", _initilaize);
+
+        it("should not redeem inactive redemption", async function () {
+            let action = RedemptionHelper.connect(alice).redeem([0]);
+            await expect(action).to.be.revertedWith("Redemption is not active yet");
+        });
+
+        it("should not redeem not having registered tokens", async function () {
+            await Dai.connect(daiWhale).transfer(manager.address, getBigNumber(1500));
+            let redemptionTime = await RedemptionHelper.getNextRedemptionTime();
+            await helpers.time.setNextBlockTimestamp(redemptionTime.add(1000));
+            await ManagedVault.connect(manager).setPrices(await helpers.time.latestBlock(), 200, 1500, [DAI], [1]);
+            await RedemptionHelper.connect(manager).activateRedemption(0, 0);
+
+            let action = RedemptionHelper.connect(daiWhale).redeem([0]);
+            await expect(action).to.be.revertedWith("No tokens registered");
+        });
+
+        it("should redeem properly", async function () {
+            await Dai.connect(daiWhale).transfer(manager.address, getBigNumber(1500));
+            let redemptionTime = await RedemptionHelper.getNextRedemptionTime();
+            await helpers.time.setNextBlockTimestamp(redemptionTime.add(1000));
+            await ManagedVault.connect(manager).setPrices(await helpers.time.latestBlock(), 200, 1500, [DAI], [1]);
+            await RedemptionHelper.connect(manager).activateRedemption(0, 0);
+
+            let daiBalance = await Dai.balanceOf(alice.address);
+
+            let action = RedemptionHelper.connect(alice).redeem([0]);
+            await expect(action).to.emit(RedemptionHelper, "Reedemed").withArgs(0, alice.address, 2000, DAI);
+            expect(await Dai.balanceOf(alice.address)).to.be.equal(daiBalance.add(2000));
         });
     });
 });
