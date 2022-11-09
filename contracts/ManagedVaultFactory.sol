@@ -60,7 +60,7 @@ contract ManagedVaultFactory is IManagedVaultFactory, Ownable {
         address owner = owner();
         helper = Clones.clone(redemptionHelperImpl);
         vault = Clones.clone(managedVaultImpl);
-        IRedemptionHelper(helper).initialize(_manager, owner);
+        IRedemptionHelper(helper).initialize(_manager, owner, vault);
         IManagedVault(vault).initialize(
             _manager,
             owner,

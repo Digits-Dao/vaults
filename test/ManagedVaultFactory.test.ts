@@ -8,7 +8,6 @@ import { getBigNumber } from "../utils";
 describe("ManagedVaultFactory", function () {
     let deployer: SignerWithAddress;
     let manager: SignerWithAddress;
-    let redemptionHelper: SignerWithAddress;
     let alice: SignerWithAddress;
     let ManagedVaultFactory: ManagedVaultFactory;
     let ManagedVault: ManagedVault;
@@ -25,13 +24,6 @@ describe("ManagedVaultFactory", function () {
 
     before(async () => {
         [deployer, manager, alice] = await ethers.getSigners();
-
-        Dai = await ethers.getContractAt(
-            "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", DAI) as IERC20;
-
-        // send dai to alice
-        const daiWhale = await ethers.getImpersonatedSigner(DAI_WHALE);
-        await Dai.connect(daiWhale).transfer(alice.address, TOKEN_AMOUNT)
 
         const managedVaultFactory = await ethers.getContractFactory("ManagedVault");
         ManagedVault = (await managedVaultFactory.deploy()) as ManagedVault;
@@ -72,6 +64,7 @@ describe("ManagedVaultFactory", function () {
                 "RedemptionHelper", await vault.redemptionHelper()) as RedemptionHelper;
             expect(await helper.admin()).to.be.equal(deployer.address);
             expect(await helper.owner()).to.be.equal(manager.address);
+            expect(await helper.vault()).to.be.equal(vaults[0]);
         });
 
         it("should create new vaults each time", async function () {

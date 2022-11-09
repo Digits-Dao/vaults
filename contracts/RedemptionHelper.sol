@@ -8,12 +8,15 @@ pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import "./interfaces/IRedemptionHelper.sol";
 import "./interfaces/IManagedVault.sol";
 
 contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
+    using SafeERC20 for IERC20;
+
     /* ============ Structures ============ */
 
     struct Redemption {
@@ -38,6 +41,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
     Redemption[] public redemptions;
     mapping(address => mapping(uint256 => uint256)) public userClaims;
 
+    IERC20 public vault;
     address public admin;
     uint256 private _preparationTime;
     uint256 private _redemptionInterval;
@@ -48,11 +52,17 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
     /**
      * @notice Initializer function called by factory.
      */
-    function initialize(address owner_, address admin_) external initializer {
+    function initialize(
+        address owner_,
+        address admin_,
+        address vault_
+    ) external initializer {
         require(owner_ != address(0));
         require(admin_ != address(0));
+        require(vault_ != address(0));
         _transferOwnership(owner_);
         admin = admin_;
+        vault = IERC20(vault_);
     }
 
     /* ============ External Admin Functions ============ */
@@ -78,6 +88,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
      * @param interval New redemption interval (in seconds).
      */
     function setRedemptionInterval(uint256 interval) external onlyOwner {
+        require(interval > 0);
         require(interval > _preparationTime);
         _redemptionInterval = interval;
         emit RedemptionIntervalSet(interval);
@@ -91,6 +102,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
      * @param preparationTime New preparation time (in seconds).
      */
     function setPreparationTime(uint256 preparationTime) external onlyOwner {
+        require(preparationTime > 0);
         require(preparationTime < _redemptionInterval);
         _preparationTime = preparationTime;
         emit PreparationTimeSet(preparationTime);
@@ -151,25 +163,25 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
         uint256 index = redemptionsLength - 1;
         Redemption storage redemption = redemptions[index];
         require(
-            block.timestamp > redemption.redemptionTime &&
-                redemption.active == false,
-            "Redemption already activated"
+            block.timestamp > redemption.redemptionTime,
+            "Redemption time in the future"
         );
         // get price + setprice time
         require(
-            IManagedVault(owner()).setPriceBlockNumber() + 5001 > block.number,
+            IManagedVault(address(vault)).setPriceBlockNumber() + 5001 >
+                block.number,
             "Price not set within 5000 blocks"
         );
-        uint256 price = IManagedVault(owner()).vaultPrice();
+        uint256 price = IManagedVault(address(vault)).vaultPrice();
         // calculate fee
         uint256 feeAmount = (redemption.fee * price) / 10000;
         price -= feeAmount;
         uint256 amount = price * redemption.pending;
         // get amount
-        (redemption.token).transferFrom(msg.sender, address(this), amount);
+        (redemption.token).safeTransferFrom(msg.sender, address(this), amount);
         redemption.price = price;
         redemption.active = true;
-        IManagedVault(owner()).burn(redemption.pending);
+        IManagedVault(address(vault)).burn(redemption.pending);
         emit RedemptionActivated(index, price, redemption.token);
         _addNewRedemption(nextRedemptionExactTime, fee);
     }
@@ -235,7 +247,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
             userClaims[msg.sender][index] = 0;
             redemption.pending -= amount;
             amount *= redemption.price;
-            (redemption.token).transfer(msg.sender, amount);
+            (redemption.token).safeTransfer(msg.sender, amount);
             emit Reedemed(index, msg.sender, amount, redemption.token);
         }
     }
@@ -254,13 +266,10 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
             block.timestamp <= redemption.registrationEndTime,
             "Registration time ended"
         );
-        require(
-            IERC20(owner()).balanceOf(msg.sender) >= amount,
-            "Too few vault tokens"
-        );
+        require(vault.balanceOf(msg.sender) >= amount, "Too few vault tokens");
         userClaims[msg.sender][index] += amount;
         redemption.pending += amount;
-        IERC20(owner()).transferFrom(msg.sender, address(this), amount);
+        vault.safeTransferFrom(msg.sender, address(this), amount);
         emit Registered(index, msg.sender, amount, redemption.token);
     }
 
@@ -284,7 +293,7 @@ contract RedemptionHelper is IRedemptionHelper, Ownable, Initializable {
         );
         userClaims[msg.sender][index] -= amount;
         redemption.pending -= amount;
-        IERC20(owner()).transfer(msg.sender, amount);
+        vault.safeTransfer(msg.sender, amount);
         emit Unregistered(index, msg.sender, amount, redemption.token);
     }
 

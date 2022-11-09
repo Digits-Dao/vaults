@@ -63,6 +63,17 @@ describe("ManagedVault", function () {
             expect(await ManagedVault.redemptionHelper()).to.be.equal(constants.AddressZero);
         });
 
+        it("should not allow zero addresses", async function () {
+            const ownerZero = ManagedVault.initialize(manager.address, constants.AddressZero, redemptionHelper.address, TOKEN_NAME, TOKEN_SYMBOL);
+            await expect(ownerZero).to.be.reverted;
+
+            const adminZero = ManagedVault.initialize(constants.AddressZero, deployer.address, redemptionHelper.address, TOKEN_NAME, TOKEN_SYMBOL);
+            await expect(adminZero).to.be.reverted;
+
+            const vaultZero = ManagedVault.initialize(manager.address, deployer.address, constants.AddressZero, TOKEN_NAME, TOKEN_SYMBOL);
+            await expect(vaultZero).to.be.reverted;
+        });
+
         it("should initialize properly", async function () {
             await ManagedVault.initialize(manager.address, deployer.address, redemptionHelper.address, TOKEN_NAME, TOKEN_SYMBOL);
             expect(await ManagedVault.name()).to.be.equal(TOKEN_NAME);

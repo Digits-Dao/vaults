@@ -120,7 +120,11 @@ interface IRedemptionHelper {
     /**
      * @notice Initializer function called by factory.
      */
-    function initialize(address owner_, address admin_) external;
+    function initialize(
+        address owner_,
+        address admin_,
+        address vault_
+    ) external;
 
     /**
      * @notice Reedem redemption tokens.
